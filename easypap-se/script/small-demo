@@ -1,0 +1,97 @@
+#/usr/bin/env bash
+
+usage()
+{
+    echo "Usage: $PROGNAME [ option ] dirname"
+    echo "option can be:" 
+    echo "  -h | --help: display help"
+
+    exit $1
+}
+
+newline()
+{
+    clear
+    echo ""
+}
+
+try()
+{
+    echo -n "[$@]"
+    read -n1 -r -p " Go? [Y/n] " response
+    response=${response,,} # tolower
+    if [[ $response =~ ^(y|yes)$ ]] || [[ -z $response ]]; then
+        echo "$@" | bash
+    else
+        echo
+    fi
+}
+
+while [[ $# -ge 1 ]]; do
+    case $1 in
+        -h|--help)
+            usage 0
+            ;;
+        *)
+            break
+            ;;
+    esac
+    shift
+done
+
+# example_img
+
+newline
+echo "Essayons tout de suite notre premier noyau, example_img, qui calcule la couleur de chaque point en fonction de leur coordonnée polaire"
+echo "Pour voir les images une à une, on force une pause entre chaque itération"
+try ./run -k spin --pause
+
+newline
+echo "Sans la pause, c'est plus fun"
+try ./run -k spin
+
+newline
+echo "Par défaut, c'est la variante sequentielle (seq) qui est utilisée. Essayons la variante omp"
+try ./run -k spin -v omp
+
+newline
+echo "Il existe également une variante GPU"
+try ./run -k spin -o
+
+newline
+echo "Si on veut comparer l'efficacité de seq vs omp, il faut mesurer le temps sans affichage"
+echo "On utilise l'option -n (no display) et l'option -i (nombre d'itérations)"
+try ./run -k spin -v seq -i 50 -n
+try ./run -k spin -v omp -i 50 -n
+
+# blur
+
+echo "Certains noyaux ont besoin d'une image en entrée : blur en fait partie"
+try ./run -l images/shibuya.png -k blur -v omp_tiled
+
+# transpose
+
+newline
+echo "Transpose aussi"
+try ./run -l images/1024.png -k transpose -p
+
+# mandel
+
+newline
+echo "Regardons à présent un noyau dont la charge de calcul n'est pas uniforme sur l'image : Mandelbrot"
+try ./run -k mandel -v omp_tiled
+
+newline
+echo "Avec une répartition cyclique des tuiles"
+try OMP_SCHEDULE=static,1 ./run -k mandel -v omp_tiled
+
+newline
+echo "Avec une répartition dynamique des tuiles"
+try OMP_SCHEDULE=dynamic ./run -k mandel -v omp_tiled
+
+
+#### Ici commence la démo des outils de visualisation et de traces
+
+# TODO
+
+exit 0
