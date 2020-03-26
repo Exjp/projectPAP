@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#include <omp.h>
+
 static long unsigned int *TABLE = NULL;
 
 static volatile int changement;
@@ -136,7 +138,7 @@ static inline void compute_new_state_opt (int y, int x)
     unsigned long int mod4 = table (y,x) % 4;
     unsigned long int div4 = table (y, x) / 4;
 
-    table(y, x) = mode4;
+    table(y, x) = mod4;
     table (y, x - 1) += div4;
     table (y, x + 1) += div4;
     table (y - 1, x) += div4;
@@ -172,7 +174,25 @@ unsigned sable_compute_seq_opt (unsigned nb_iter)
       return it;
   }
   return 0;
-} 
+}
+
+/////////////////////////////// Version OpenMP avec opérations atomiques (omp_atomic)
+
+unsigned sable_compute_omp_atomic (unsigned nb_iter)
+{
+
+#pragma omp parallel for
+#pragma omp atomic
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    changement = 0;
+    
+    do_tile (1, 1, DIM - 2, DIM - 2, 0);
+    if (changement == 0)
+      return it;
+  }
+  return 0;
+}
 
 ///////////////////////////// Version séquentielle tuilée (tiled)
 
