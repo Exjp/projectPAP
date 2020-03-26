@@ -128,6 +128,52 @@ unsigned sable_compute_seq (unsigned nb_iter)
   return 0;
 }
 
+/////////////////////////////// Version séquentielle simple mais optimisé (seq_opt)
+
+static inline void compute_new_state_opt (int y, int x)
+{
+  if (table (y, x) >= 4) {
+    unsigned long int mod4 = table (y,x) % 4;
+    unsigned long int div4 = table (y, x) / 4;
+
+    table(y, x) = mode4;
+    table (y, x - 1) += div4;
+    table (y, x + 1) += div4;
+    table (y - 1, x) += div4;
+    table (y + 1, x) += div4;
+    table (y, x) %= 4;
+    changement = 1;
+  }
+}
+
+static void do_tile_opt (int x, int y, int width, int height, int who)
+{
+  PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
+               y + height - 1);
+
+  monitoring_start_tile (who);
+
+  for (int i = y; i < y + height; i++)
+    for (int j = x; j < x + width; j++) {
+      compute_new_state_opt (i, j);
+    }
+  monitoring_end_tile (x, y, width, height, who);
+}
+
+
+unsigned sable_compute_seq_opt (unsigned nb_iter)
+{
+
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    changement = 0;
+    
+    do_tile (1, 1, DIM - 2, DIM - 2, 0);
+    if (changement == 0)
+      return it;
+  }
+  return 0;
+} 
+
 ///////////////////////////// Version séquentielle tuilée (tiled)
 
 unsigned sable_compute_tiled (unsigned nb_iter)
