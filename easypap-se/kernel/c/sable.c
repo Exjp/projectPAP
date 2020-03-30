@@ -128,7 +128,7 @@ unsigned sable_compute_seq (unsigned nb_iter)
   return 0;
 }
 
-/////////////////////////////// Version séquentielle simple mais optimisé (seq_opt)
+// /////////////////////////////// Version séquentielle simple mais optimisé (seq_opt)
 
 // static inline void compute_new_state_opt (int y, int x)
 // {
@@ -177,34 +177,34 @@ unsigned sable_compute_seq (unsigned nb_iter)
 ///////////////////////////// Version OpenMP avec opérations atomiques (omp_atomic)
 
 
-static void do_tile_omp_atomic (int x, int y, int width, int height, int who)
+static inline void compute_new_state_omp (int y, int x)
+{
+  if (table (y, x) >= 4) {
+    unsigned long int div4 = table (y, x) / 4;
+    #pragma omp atomic
+    table (y, x - 1) += div4;
+    #pragma omp atomic
+    table (y, x + 1) += div4;
+    #pragma omp atomic
+    table (y - 1, x) += div4;
+    #pragma omp atomic
+    table (y + 1, x) += div4;
+    table (y, x) %= 4;
+    changement = 1;
+  }
+}
+
+static void do_tile_omp (int x, int y, int width, int height, int who)
 {
   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
                y + height - 1);
 
   monitoring_start_tile (who);
 
-  #pragma omp parallel for schedule(dynamic)
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-        if (table (y, x) >= 4) {
-          unsigned long int mod4 = table (y,x) % 4;
-          unsigned long int div4 = table (y, x) / 4;
-          
-          table(y, x) = mod4;
-          #pragma omp atomic
-          table (y, x - 1) += div4;
-          #pragma omp atomic
-          table (y, x + 1) += div4;
-          #pragma omp atomic
-          table (y - 1, x) += div4;
-          #pragma omp atomic
-          table (y + 1, x) += div4;
-          table (y, x) %= 4;
-          changement = 1;
-        }
-
-
+      compute_new_state_omp (i, j);
+    }
   monitoring_end_tile (x, y, width, height, who);
 }
 
@@ -213,9 +213,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
 
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
-    
-    
-    do_tile_omp_atomic (1, 1, DIM - 2, DIM - 2, 0);
+    do_tile_omp (1, 1, DIM - 2, DIM - 2, 0);
     if (changement == 0)
       return it;
   }
@@ -233,7 +231,7 @@ unsigned sable_compute_tiled (unsigned nb_iter)
 
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
-        do_tile_opt (x + (x == 0), y + (y == 0),
+        do_tile (x + (x == 0), y + (y == 0),
                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                  0 /* CPU id */);
