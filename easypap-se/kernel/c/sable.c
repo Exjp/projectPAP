@@ -122,7 +122,7 @@ unsigned sable_compute_seq (unsigned nb_iter)
     changement = 0;
     // On traite toute l'image en un coup (oui, c'est une grosse tuile)
     do_tile (1, 1, DIM - 2, DIM - 2, 0);
-    if (changement == 0)
+    if (changement == 0)  
       return it;
   }
   return 0;
@@ -200,7 +200,7 @@ static void do_tile_omp (int x, int y, int width, int height, int who)
                y + height - 1);
 
   monitoring_start_tile (who);
-
+  #pragma omp for
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
       compute_new_state_omp (i, j);
@@ -210,10 +210,11 @@ static void do_tile_omp (int x, int y, int width, int height, int who)
 
 unsigned sable_compute_omp (unsigned nb_iter) 
 {
-
+  
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
-    do_tile_omp (1, 1, DIM - 2, DIM - 2, 0);
+    #pragma omp parallel
+    do_tile_omp (1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
     if (changement == 0)
       return it;
   }
@@ -228,7 +229,7 @@ unsigned sable_compute_tiled (unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
-
+    #pragma par
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
         do_tile (x + (x == 0), y + (y == 0),
