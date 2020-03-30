@@ -233,7 +233,7 @@ unsigned sable_compute_tiled (unsigned nb_iter)
 
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
-        do_tile (x + (x == 0), y + (y == 0),
+        do_tile_opt (x + (x == 0), y + (y == 0),
                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                  0 /* CPU id */);
