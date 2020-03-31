@@ -236,18 +236,18 @@ unsigned sable_compute_omp (unsigned nb_iter)
 
 static void compute_new_state_tiled (int x, int y)
 {
-  #pragma omp critical
   if (table (y, x) >= 4) {
     unsigned long int div4 = table (y, x) / 4;
-  // #pragma omp task firstprivate (div4)
-  // {
-    table (y, x - 1) += div4;
-    table (y, x + 1) += div4;
-    table (y - 1, x) += div4;
-    table (y + 1, x) += div4;
-    table (y, x) %= 4;
-  // }
-    changement = 1;
+      #pragma omp atomic
+      table (y, x - 1) += div4;
+      #pragma omp atomic
+      table (y, x + 1) += div4;
+      #pragma omp atomic
+      table (y - 1, x) += div4;
+      #pragma omp atomic
+      table (y + 1, x) += div4;
+      table (y, x) %= 4;
+      changement = 1;
   }
   
 }
