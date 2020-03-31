@@ -233,13 +233,13 @@ static void compute_new_state_tiled (int x, int y)
 {
   if (table (y, x) >= 4) {
     unsigned long int div4 = table (y, x) / 4;
-      #pragma omp atomic
+      // #pragma omp atomic
       table (y, x - 1) += div4;
-      #pragma omp atomic
+      // #pragma omp atomic
       table (y, x + 1) += div4;
-      #pragma omp atomic
+      // #pragma omp atomic
       table (y - 1, x) += div4;
-      #pragma omp atomic
+      // #pragma omp atomic
       table (y + 1, x) += div4;
       table (y, x) %= 4;
       changement = 1;
