@@ -179,23 +179,21 @@ unsigned sable_compute_seq (unsigned nb_iter)
 
 static inline void compute_new_state_omp (int y, int x)
 {
-  // if (table (y, x) >= 4) {
+  if (table (y, x) >= 4) {
 
-    //  #pragma omp task firstprivate(y,x,table)
-    {
       unsigned long int div4 = table (y, x) / 4;
-      // #pragma omp atomic
+      #pragma omp atomic
       table (y, x - 1) += div4;
-      // #pragma omp atomic
+      #pragma omp atomic
       table (y, x + 1) += div4;
-      // #pragma omp atomic
+      #pragma omp atomic
       table (y - 1, x) += div4;
-      // #pragma omp atomic
+      #pragma omp atomic
       table (y + 1, x) += div4;
       table (y, x) %= 4;
       changement = 1;
-    }
-  // }
+
+  }
 }
 
 static void do_tile_omp (int x, int y, int width, int height, int who)
@@ -204,14 +202,11 @@ static void do_tile_omp (int x, int y, int width, int height, int who)
                y + height - 1);
 
   monitoring_start_tile (who);
-  #pragma omp for collapse (2) schedule(dynamic)
+  #pragma omp for schedule(dynamic)
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-      // #pragma omp critical
-      if (table (i, j) >= 4){
-      
+      if(i)
         compute_new_state_omp (i, j);
-      }
     }
   monitoring_end_tile (x, y, width, height, who);
 }
@@ -225,7 +220,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
     do_tile_omp (1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
     if (changement == 0)
       return it;
-    #pragma omp barrier
+    
   }
   return 0;
 }
@@ -257,10 +252,12 @@ static void do_tile_tiled (int x, int y, int width, int height, int who)
   monitoring_start_tile (who);
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
+      // faire autre chose pour les bords
       compute_new_state_tiled(i, j);
     }
   monitoring_end_tile (x, y, width, height, who);
 }
+
 
 unsigned sable_compute_tiled (unsigned nb_iter)
 {
@@ -269,10 +266,19 @@ unsigned sable_compute_tiled (unsigned nb_iter)
     #pragma omp parallel for collapse(2) schedule(dynamic)
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
-        do_tile_tiled (x + (x == 0), y + (y == 0),
+      #pragma omp critical
+      if(x > 0 || y > 0 || x < DIM - TILE_SIZE || y < DIM- TILE_SIZE){
+        do_tile_tiled(x + (x == 0), y + (y == 0),
                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                   omp_get_thread_num());
+      }
+      else{
+        do_tile_tiled (x + (x == 0), y + (y == 0),
+                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                    omp_get_thread_num());
+      }
     if (changement == 0)
       return it;
   }
