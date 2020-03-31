@@ -155,12 +155,10 @@ static void do_tile_tiled (int x, int y, int width, int height, int who)
       compute_new_state (i, j);
     }
   #pragma omp barrier
-
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
       compute_new_state (i, j);
     }
-  #pragma omp barrier
   
   monitoring_end_tile (x, y, width, height, who);
 }
@@ -169,7 +167,7 @@ unsigned sable_compute_tiled (unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
-    #pragma omp parallel for collapse(2) schedule(dynamic)
+    #pragma omp parallel for collapse(2)
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = 0; x < DIM; x += TILE_SIZE)
         do_tile_tiled (x + (x == 0), y + (y == 0),
