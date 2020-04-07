@@ -4,7 +4,7 @@
 
 static long unsigned int *TABLE = NULL;
 
-static volatile int changement;
+static int changement;
 
 static unsigned long int max_grains;
 
@@ -208,8 +208,7 @@ static void do_tile_omp (int x, int y, int width, int height, int who)
   #pragma omp for 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-      if(i)
-        compute_new_state_omp (i, j);
+      compute_new_state_omp (i, j);
     }
   monitoring_end_tile (x, y, width, height, who);
 }
@@ -223,7 +222,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
     do_tile_omp (1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
     if (changement == 0)
       return it;
-    #pragma omp barrier
+  
   
   }
   return 0;

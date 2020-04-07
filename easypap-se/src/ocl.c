@@ -171,6 +171,7 @@ void ocl_show_config (int quit, int verbose)
         chosen_p        = p;
         chosen_platform = pf[p];
         chosen_d        = d;
+        chosen_device = devices[d];
       }
 
       if (chosen_p == p) {

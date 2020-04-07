@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
+
 from graphTools import *
 import sys
+
 
 args = parserArguments(sys.argv)
 df = lireDataFrame(args)
 
-# Selection des lignes :
-# df = df[(-df.threads.isin([8])) & (df.kernel.isin(['mandel']))].reset_index(drop = True)
+# Let us translate 'arg' into '2^arg'
+group = 'group size (consecutive threads following same path)'
+df[group] = (2 ** df['arg'])
+del(df['arg'])
 
-# Creation du graphe :
+args.x = group
+
+# Generate plot
 fig = creerGraphique(df=df, args=args)
 
 engeristrerGraphique(fig)
