@@ -13,7 +13,8 @@ TIMEOUT_SECONDS = 30
 VARIANT = [
     ['seq', []],
     ['omp', []],
-    ['tiled', []],
+    ['tileddb', []],
+    ['tiledsharedy', []],
 ]
 
 ARG = [
