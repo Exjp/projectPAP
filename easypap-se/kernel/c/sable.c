@@ -278,7 +278,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
 
-    #pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for //schedule(dynamic)
       for (int y = 1; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
@@ -287,7 +287,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
           monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
-      #pragma omp parallel for schedule(dynamic)
+      #pragma omp parallel for //schedule(dynamic)
       for (int y = 2; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
@@ -296,7 +296,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
           monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
-      #pragma omp parallel for schedule(dynamic)
+      #pragma omp parallel for //schedule(dynamic)
       for (int y = 3; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
@@ -360,7 +360,7 @@ static void do_tile_tiled (int x, int y, int width, int height, int who)
 //   for (unsigned it = 1; it <= nb_iter; it++) {
 //     changement = 0;
 
-//     #pragma omp parallel for collapse(2) schedule(dynamic)
+//     #pragma omp parallel for collapse(2) //schedule(dynamic)
 //     for (int y = 0; y < DIM; y += TILE_SIZE)
 //       for (int x = 0; x < DIM; x += TILE_SIZE)
 //         do_tile_tiled(x + (x == 0), y + (y == 0),
@@ -382,7 +382,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
 {
   for(unsigned it = 1;it <= nb_inter; it++){
     changement = 0;
-    #pragma omp parallel for collapse(2) schedule(dynamic)
+    #pragma omp parallel for collapse(2) //schedule(dynamic)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) 
           do_tile_tiled (x + (x == 0), y + (y == 0),
@@ -390,7 +390,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
             
-    #pragma omp parallel for collapse(2) schedule(dynamic)
+    #pragma omp parallel for collapse(2) //schedule(dynamic)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE)
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE)
           do_tile_tiled (x + (x == 0), y + (y == 0),
@@ -398,7 +398,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
             
-    #pragma omp parallel for collapse(2) schedule(dynamic)
+    #pragma omp parallel for collapse(2) //schedule(dynamic)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE) 
           do_tile_tiled (x + (x == 0), y + (y == 0),
@@ -406,7 +406,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
 
-    #pragma omp parallel for collapse(2) schedule(dynamic)
+    #pragma omp parallel for collapse(2) //schedule(dynamic)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE)
           do_tile_tiled (x + (x == 0), y + (y == 0),
@@ -432,7 +432,7 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     changement = 0;
     int y = 0;
-    #pragma omp parallel for shared(y) schedule(dynamic)
+    #pragma omp parallel for shared(y) //schedule(dynamic)
     for (y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? 0:TILE_SIZE; x < DIM; x += TILE_SIZE* 2)
         do_tile_tiled (x + (x == 0), y + (y == 0),
@@ -440,7 +440,7 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
 
-    #pragma omp parallel for shared(y) schedule(dynamic)
+    #pragma omp parallel for shared(y) //schedule(dynamic)
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? TILE_SIZE:0; x < DIM; x += TILE_SIZE  * 2)
         do_tile_tiled (x + (x == 0), y + (y == 0),
