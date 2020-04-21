@@ -150,15 +150,15 @@ static int do_tile (int x, int y, int width, int height, int who)
 {
   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
                y + height - 1);
-  int changement;
+  int changements = 0;
   monitoring_start_tile (who);
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-      changement = compute_new_state (i, j);
+      changements += compute_new_state (i, j);
     }
   monitoring_end_tile (x, y, width, height, who);
-  return changement;
+  return changements;
 }
 
 // Renvoie le nombre d'itérations effectuées avant stabilisation, ou 0
@@ -168,7 +168,7 @@ unsigned sable_compute_seq (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
     // On traite toute l'image en un coup (oui, c'est une grosse tuile)
-    do_tile (1, 1, DIM - 2, DIM - 2, 0);
+    changements += do_tile (1, 1, DIM - 2, DIM - 2, 0);
     if (changements == 0)  
       return it;
   }
@@ -345,14 +345,17 @@ unsigned sable_compute_omp (unsigned nb_iter)
 
 static int do_tile_tiled (int x, int y, int width, int height, int who)
 {
-  int changement;
+  int chang = 0;
   monitoring_start_tile (who);
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-      changement = compute_new_state(i, j);
+      chang += compute_new_state(i, j);
     }
   monitoring_end_tile (x, y, width, height, who);
-  return changement;
+  if(chang == 0){
+    return 0;
+  }
+  return 1;
 }
 
 
@@ -391,7 +394,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
     #pragma omp parallel for collapse(2) //schedule(dynamic)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) 
-          changements +=do_tile_tiled (x + (x == 0), y + (y == 0),
+          changements += do_tile_tiled (x + (x == 0), y + (y == 0),
                   TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
@@ -420,7 +423,6 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
                     omp_get_thread_num());
       
-        
         if (changements == 0)
       return it;
   }
