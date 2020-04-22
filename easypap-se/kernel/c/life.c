@@ -1,57 +1,118 @@
 
 #include "easypap.h"
+#include "rle_lexer.h"
 
 #include <omp.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
-static unsigned couleur = 0xFFFF00FF; // Yellow
+static unsigned color = 0xFFFF00FF; // Living cells have the yellow color
 
-static unsigned *restrict _table = NULL, *restrict _alternate_table = NULL;
+typedef unsigned cell_t;
 
-static inline unsigned *table_cell (unsigned *restrict i, int y, int x)
+static cell_t *restrict _table = NULL, *restrict _alternate_table = NULL;
+
+static inline cell_t *table_cell (cell_t *restrict i, int y, int x)
 {
   return i + y * DIM + x;
 }
 
+// This kernel does not directly work on cur_img/next_img.
+// Instead, we use 2D arrays of boolean values, not colors
 #define cur_table(y, x) (*table_cell (_table, (y), (x)))
 #define next_table(y, x) (*table_cell (_alternate_table, (y), (x)))
 
 void life_init (void)
 {
-  if (_table == NULL)
-    _table = mmap (NULL, DIM * DIM * sizeof (unsigned), PROT_READ | PROT_WRITE,
+
+  // life_init may be (indirectly) called several times so we check if data were
+  // already allocated
+  if (_table == NULL) {
+    const unsigned size = DIM * DIM * sizeof (cell_t);
+
+    PRINT_DEBUG ('u', "Memory footprint = 2 x %d bytes\n", size);
+
+    _table = mmap (NULL, size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-  if (_alternate_table == NULL)
-    _alternate_table =
-        mmap (NULL, DIM * DIM * sizeof (unsigned), PROT_READ | PROT_WRITE,
-              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    _alternate_table = mmap (NULL, size, PROT_READ | PROT_WRITE,
+                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  }
 }
 
 void life_finalize (void)
 {
-  munmap (_table, DIM * DIM * sizeof (unsigned));
-  munmap (_alternate_table, DIM * DIM * sizeof (unsigned));
+  const unsigned size = DIM * DIM * sizeof (cell_t);
+
+  munmap (_table, size);
+  munmap (_alternate_table, size);
 }
 
+// This function is called whenever the graphical window needs to be refreshed
 void life_refresh_img (void)
 {
   for (int i = 0; i < DIM; i++)
     for (int j = 0; j < DIM; j++)
-      cur_img (i, j) = cur_table (i, j) * couleur;
+      cur_img (i, j) = cur_table (i, j) * color;
 }
 
 static inline void swap_tables (void)
 {
-  unsigned *tmp = _table;
+  cell_t *tmp = _table;
 
   _table           = _alternate_table;
   _alternate_table = tmp;
 }
 
 ///////////////////////////// Sequential version (seq)
+
+static int compute_new_state (int y, int x)
+{
+  unsigned n  = 0;
+  unsigned me = cur_table (y, x) != 0;
+  unsigned change = 0;
+
+  if (x > 0 && x < DIM - 1 && y > 0 && y < DIM - 1) {
+
+    for (int i = y - 1; i <= y + 1; i++)
+      for (int j = x - 1; j <= x + 1; j++)
+        n += cur_table (i, j);
+
+    n = (n == 3 + me) | (n == 3);
+    if (n != me)
+      change |= 1;
+
+    next_table (y, x) = n;
+  }
+
+  return change;
+}
+
+unsigned life_compute_seq (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    int change = 0;
+
+    monitoring_start_tile (0);
+
+    for (int i = 0; i < DIM; i++)
+      for (int j = 0; j < DIM; j++)
+        change |= compute_new_state (i, j);
+
+    monitoring_end_tile (0, 0, DIM, DIM, 0);
+
+    swap_tables ();
+
+    if (!change)
+      return it;
+  }
+
+  return 0;
+}
+
+///////////////////////////// Tiled sequential version (tiled)
 
 // Tile inner computation
 static int do_tile_reg (int x, int y, int width, int height)
@@ -60,21 +121,7 @@ static int do_tile_reg (int x, int y, int width, int height)
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++)
-      if (j > 0 && j < DIM - 1 && i > 0 && i < DIM - 1) {
-
-        unsigned n  = 0;
-        unsigned me = cur_table (i, j) != 0;
-
-        for (int yloc = i - 1; yloc < i + 2; yloc++)
-          for (int xloc = j - 1; xloc < j + 2; xloc++)
-            n += cur_table (yloc, xloc);
-
-        n = (n == 3 + me) | (n == 3);
-        if (n != me)
-          change |= 1;
-
-        next_table (i, j) = n;
-      }
+      change |= compute_new_state (i, j);
 
   return change;
 }
@@ -92,24 +139,6 @@ static int do_tile (int x, int y, int width, int height, int who)
   return r;
 }
 
-
-unsigned life_compute_seq (unsigned nb_iter)
-{
-  for (unsigned it = 1; it <= nb_iter; it++) {
-
-    int change = do_tile (0, 0, DIM, DIM, 0);
-
-    swap_tables ();
-
-    if (!change)
-      return it;
-  }
-
-  return 0;
-}
-
-///////////////////////////// Tiled sequential version (tiled)
-
 unsigned life_compute_tiled (unsigned nb_iter)
 {
   unsigned res = 0;
@@ -123,7 +152,7 @@ unsigned life_compute_tiled (unsigned nb_iter)
 
     swap_tables ();
 
-    if (!change) { // we stop if all cells are stable
+    if (!change) { // we stop when all cells are stable
       res = it;
       break;
     }
@@ -132,76 +161,114 @@ unsigned life_compute_tiled (unsigned nb_iter)
   return res;
 }
 
-///////////////////////////// Configuration initiale
+
+///////////////////////////// Initial configs
 
 void life_draw_stable (void);
 void life_draw_guns (void);
 void life_draw_random (void);
 void life_draw_clown (void);
 void life_draw_diehard (void);
-
-void life_draw (char *param)
-{
-  // Call function ${kernel}_draw_${param}, or default function (second
-  // parameter) if symbol not found
-  hooks_draw_helper (param, life_draw_guns);
-}
+void life_draw_bugs (void);
+void life_draw_otca_off (void);
+void life_draw_otca_on (void);
+void life_draw_meta3x3 (void);
 
 static inline void set_cell (int y, int x)
 {
   cur_table (y, x) = 1;
+  if (opencl_used)
+    cur_img (y, x) = 1;
 }
 
-static void gun (int x, int y, int version)
+static inline int get_cell (int y, int x)
 {
-  bool glider_gun[11][38] = {
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
-       0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
-       0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0},
-      {0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
-       0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1,
-       0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0,
-       0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  };
+  return cur_table (y, x);
+}
 
-  if (version == 0)
-    for (int i = 0; i < 11; i++)
-      for (int j = 0; j < 38; j++)
-        if (glider_gun[i][j])
-          set_cell (i + x, j + y);
+static void inline life_rle_parse (char *filename, int x, int y,
+                                   int orientation)
+{
+  rle_lexer_parse (filename, x, y, set_cell, orientation);
+}
 
-  if (version == 1)
-    for (int i = 0; i < 11; i++)
-      for (int j = 0; j < 38; j++)
-        if (glider_gun[i][j])
-          set_cell (x - i, j + y);
+static void inline life_rle_generate (char *filename, int x, int y, int width,
+                                      int height)
+{
+  rle_generate (x, y, width, height, get_cell, filename);
+}
 
-  if (version == 2)
-    for (int i = 0; i < 11; i++)
-      for (int j = 0; j < 38; j++)
-        if (glider_gun[i][j])
-          set_cell (x - i, y - j);
+void life_draw (char *param)
+{
+  if (access (param, R_OK) != -1) {
+    // The parameter is a filename, so we guess it's a RLE-encoded file
+    life_rle_parse (param, 1, 1, RLE_ORIENTATION_NORMAL);
+  } else
+    // Call function ${kernel}_draw_${param}, or default function (second
+    // parameter) if symbol not found
+    hooks_draw_helper (param, life_draw_guns);
+}
 
-  if (version == 3)
-    for (int i = 0; i < 11; i++)
-      for (int j = 0; j < 38; j++)
-        if (glider_gun[i][j])
-          set_cell (i + x, y - j);
+static void otca_autoswitch (char *name, int x, int y)
+{
+  life_rle_parse (name, x, y, RLE_ORIENTATION_NORMAL);
+  life_rle_parse ("data/autoswitch-ctrl.rle", x + 123, y + 1396,
+                  RLE_ORIENTATION_NORMAL);
+}
+
+static void otca_life (char *name, int x, int y)
+{
+  life_rle_parse (name, x, y, RLE_ORIENTATION_NORMAL);
+  life_rle_parse ("data/b3-s23-ctrl.rle", x + 123, y + 1396,
+                  RLE_ORIENTATION_NORMAL);
+}
+
+static void at_the_four_corners (char *filename, int distance)
+{
+  life_rle_parse (filename, distance, distance, RLE_ORIENTATION_NORMAL);
+  life_rle_parse (filename, distance, distance, RLE_ORIENTATION_HINVERT);
+  life_rle_parse (filename, distance, distance, RLE_ORIENTATION_VINVERT);
+  life_rle_parse (filename, distance, distance,
+                  RLE_ORIENTATION_HINVERT | RLE_ORIENTATION_VINVERT);
+}
+
+// Suggested cmdline: ./run -k life -s 2176 -a otca_off -ts 64 -r 10
+void life_draw_otca_off (void)
+{
+  if (DIM < 2176)
+    exit_with_error ("DIM should be at least %d", 2176);
+
+  otca_autoswitch ("data/otca-off.rle", 1, 1);
+}
+
+// Suggested cmdline: ./run -k life -s 2176 -a otca_on -ts 64 -r 10
+void life_draw_otca_on (void)
+{
+  if (DIM < 2176)
+    exit_with_error ("DIM should be at least %d", 2176);
+
+  otca_autoswitch ("data/otca-on.rle", 1, 1);
+}
+
+// Suggested cmdline: ./run -k life -s 6208 -a meta3x3 -ts 64 -r 50
+void life_draw_meta3x3 (void)
+{
+  if (DIM < 6208)
+    exit_with_error ("DIM should be at least %d", 6208);
+
+  for (int i = 0; i < 3; i++)
+    for (int j = 0; j < 3; j++)
+      otca_life (j == 1 ? "data/otca-on.rle" : "data/otca-off.rle",
+                 1 + j * (2058 - 10), 1 + i * (2058 - 10));
+}
+
+// Suggested cmdline: ./run -k life -a bugs -ts 64
+void life_draw_bugs (void)
+{
+  for (int y = 0; y < DIM / 2; y += 32) {
+    life_rle_parse ("data/tagalong.rle", y + 1, y + 8, RLE_ORIENTATION_NORMAL);
+    life_rle_parse ("data/tagalong.rle", y + 1, (DIM - 32 - y) + 8, RLE_ORIENTATION_NORMAL);
+  }
 }
 
 void life_draw_stable (void)
@@ -217,12 +284,7 @@ void life_draw_stable (void)
 
 void life_draw_guns (void)
 {
-  memset (&cur_table (0, 0), 0, DIM * DIM * sizeof (cur_table (0, 0)));
-
-  gun (0, 0, 0);
-  gun (0, DIM - 1, 3);
-  gun (DIM - 1, DIM - 1, 2);
-  gun (DIM - 1, 0, 1);
+  at_the_four_corners ("data/gun.rle", 1);
 }
 
 void life_draw_random (void)
@@ -233,32 +295,14 @@ void life_draw_random (void)
         set_cell (i, j);
 }
 
+// Suggested cmdline: ./run -k life -s 256 -a clown -i 110
 void life_draw_clown (void)
 {
-  memset (&cur_table (0, 0), 0, DIM * DIM * sizeof (cur_table (0, 0)));
-
-  int mid = DIM / 2;
-
-  set_cell (mid, mid - 1);
-  set_cell (mid, mid);
-  set_cell (mid, mid + 1);
-  set_cell (mid + 1, mid - 1);
-  set_cell (mid + 1, mid + 1);
-  set_cell (mid + 2, mid - 1);
-  set_cell (mid + 2, mid + 1);
+  life_rle_parse ("data/clown-seed.rle", DIM / 2, DIM / 2,
+                  RLE_ORIENTATION_NORMAL);
 }
 
 void life_draw_diehard (void)
 {
-  memset (&cur_table (0, 0), 0, DIM * DIM * sizeof (cur_table (0, 0)));
-
-  int mid = DIM / 2;
-
-  set_cell (mid, mid - 3);
-  set_cell (mid, mid - 2);
-  set_cell (mid + 1, mid - 2);
-  set_cell (mid - 1, mid + 3);
-  set_cell (mid + 1, mid + 2);
-  set_cell (mid + 1, mid + 3);
-  set_cell (mid + 1, mid + 4);
+  life_rle_parse ("data/diehard.rle", DIM / 2, DIM / 2, RLE_ORIENTATION_NORMAL);
 }

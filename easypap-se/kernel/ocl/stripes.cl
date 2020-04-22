@@ -74,7 +74,7 @@ __kernel void stripes_ocl_opt (__global unsigned *in, __global unsigned *out)
   // The second half executes "brighten" on odd x-positions
   // The accessed to "tile" are not contiguous at all, but it doesn't hurt
   // Because (TILEX/2) is a multiple of 32, we have no divergence between warps
-  if (xloc < get_local_size (0) / 2) {
+  if (index < get_local_size (0)) {
     tile [yloc][index] = darken(tile [yloc][index]);
   } else {
     index += - get_local_size (0) + 1;

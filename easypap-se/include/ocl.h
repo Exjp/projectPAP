@@ -35,6 +35,7 @@ size_t ocl_get_max_workgroup_size (void);
   } while (0)
 
 extern unsigned SIZE, TILE, TILEX, TILEY;
+extern cl_context context;
 extern cl_kernel compute_kernel;
 extern cl_command_queue queue;
 extern cl_mem cur_buffer, next_buffer;

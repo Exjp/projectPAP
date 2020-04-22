@@ -332,7 +332,7 @@ void graphics_alloc_images (void)
     SDL_FreeSurface (temporary_surface);
     temporary_surface = NULL;
 
-    graphics_image_clean ();
+    // graphics_image_clean ();
   }
 }
 
