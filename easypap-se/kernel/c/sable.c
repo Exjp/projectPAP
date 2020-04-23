@@ -275,6 +275,29 @@ unsigned sable_compute_seq (unsigned nb_iter)
 //   return 0;
 // }
 
+unsigned sable_compute_omp2 (unsigned nb_iter)
+{
+    unsigned it=0;
+
+  for (it = 1; it <= nb_iter; it++) {
+    int changements = 0;
+    // On traite toute l'image en un coup (oui, c'est une grosse tuile)
+    #pragma omp parallel for
+    for(int i=1;i<DIM-1;i++){
+      monitoring_start_tile (omp_get_thread_num());
+            for(int j=1;j<DIM-1;j++){
+
+                changements += compute_new_state(i,j);
+            }
+      monitoring_end_tile (1, i, DIM, 1, omp_get_thread_num());
+        }
+
+    if (changements == 0)
+      return it;
+  }
+  return 0;
+}
+
 
 unsigned sable_compute_omp (unsigned nb_iter) 
 {
@@ -384,6 +407,32 @@ static int do_tile_tiled (int x, int y, int width, int height, int who)
 //   return 0;
 // }
 
+// unsigned sable_compute_omptiled (unsigned nb_iter)
+// {
+//   for (unsigned it = 1; it <= nb_iter; it++) {
+//     int changements = 0;
+//         #pragma omp parallel
+//         {
+//             #pragma omp single
+//             {
+//             for (int y = 0; y < DIM; y += TILE_SIZE){
+//               for (int x = 0; x < DIM; x += TILE_SIZE){
+//                         #pragma omp task
+//                 changements += do_tile (x + (x == 0), y + (y == 0),
+//                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+//                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+//                  0 /* CPU id */);
+//                     }
+//                 }
+//             #pragma omp taskwait
+//             }
+//         }
+//   if (changements == 0)
+//     return it;
+//      }
+
+//   return 0;
+// }
 
 
 
