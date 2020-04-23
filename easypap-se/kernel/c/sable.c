@@ -146,6 +146,7 @@ static inline int compute_new_state_opt_tmp (int y, int x)
 }
 
 
+
 static int do_tile (int x, int y, int width, int height, int who)
 {
   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
@@ -155,7 +156,9 @@ static int do_tile (int x, int y, int width, int height, int who)
 
   for (int i = y; i < y + height; i++)
     for (int j = x; j < x + width; j++) {
-      changements += compute_new_state (i, j);
+			if(compute_new_state (i, j)) {
+                changements = 1;
+            }
     }
   monitoring_end_tile (x, y, width, height, who);
   return changements;
@@ -168,7 +171,9 @@ unsigned sable_compute_seq (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
     // On traite toute l'image en un coup (oui, c'est une grosse tuile)
-    changements += do_tile (1, 1, DIM - 2, DIM - 2, 0);
+		if(do_tile (1, 1, DIM - 2, DIM - 2, 0)) {
+                changements = 1;
+            }
     if (changements == 0)  
       return it;
   }
@@ -180,123 +185,8 @@ unsigned sable_compute_seq (unsigned nb_iter)
 
 
 
-// static inline void compute_new_state_opt (int y, int x)
-// {
-//   if (table (y, x) >= 4) {
-//     unsigned long int mod4 = table (y,x) % 4;
-//     unsigned long int div4 = table (y, x) / 4;
+///////////////////////////// Version OpenMP (omp_atomic)
 
-//     table(y, x) = mod4;
-//     table (y, x - 1) += div4;
-//     table (y, x + 1) += div4;
-//     table (y - 1, x) += div4;
-//     table (y + 1, x) += div4;
-//     table (y, x) %= 4;
-//     changement = 1;
-//   }
-// }
-
-// static void do_tile_opt (int x, int y, int width, int height, int who)
-// {
-//   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
-//                y + height - 1);
-
-//   monitoring_start_tile (who);
-
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_opt (i, j);
-//     }
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-
-// unsigned sable_compute_seq (unsigned nb_iter)
-// {
-
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     changement = 0;
-    
-//     do_tile_opt (1, 1, DIM - 2, DIM - 2, 0);
-//     if (changement == 0)
-//       return it;
-//   }
-//   return 0;
-// }
-
-///////////////////////////// Version OpenMP avec opérations atomiques (omp_atomic)
-
-
-// static inline void compute_new_state_omp (int y, int x)
-// {
-//   if (table (y, x) >= 4) {
-
-//       unsigned long int div4 = table (y, x) / 4;
-//       // #pragma omp atomic
-//       table (y, x - 1) += div4;
-//       // #pragma omp atomic
-//       table (y, x + 1) += div4;
-//       // #pragma omp atomic
-//       table (y - 1, x) += div4;
-//       // #pragma omp atomic
-//       table (y + 1, x) += div4;
-//       table (y, x) %= 4;
-//       changement = 1;
-
-//   }
-// }
-
-// static void do_tile_omp (int x, int y, int width, int height, int who)
-// {
-//   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
-//                y + height - 1);
-
-//   monitoring_start_tile (who);
-//   #pragma omp for
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_omp (i, j);
-//     }
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-// unsigned sable_compute_omp (unsigned nb_iter) 
-// {
-  
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     changement = 0;
-//     #pragma omp parallel
-//     do_tile_omp (1, 1, DIM - 2, DIM - 2, omp_get_thread_num());
-//     if (changement == 0)
-//       return it;
-  
-  
-//   }
-//   return 0;
-// }
-
-unsigned sable_compute_omp2 (unsigned nb_iter)
-{
-    unsigned it=0;
-
-  for (it = 1; it <= nb_iter; it++) {
-    int changements = 0;
-    // On traite toute l'image en un coup (oui, c'est une grosse tuile)
-    #pragma omp parallel for
-    for(int i=1;i<DIM-1;i++){
-      monitoring_start_tile (omp_get_thread_num());
-            for(int j=1;j<DIM-1;j++){
-
-                changements += compute_new_state(i,j);
-            }
-      monitoring_end_tile (1, i, DIM, 1, omp_get_thread_num());
-        }
-
-    if (changements == 0)
-      return it;
-  }
-  return 0;
-}
 
 
 unsigned sable_compute_omp (unsigned nb_iter) 
@@ -305,29 +195,35 @@ unsigned sable_compute_omp (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
 
-    #pragma omp parallel for //schedule(dynamic)
+    #pragma omp parallel for schedule(runtime)
       for (int y = 1; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
-              changements += compute_new_state (y, x);
+              if(compute_new_state (y, x)) {
+                changements = 1;
+            }
         }
           monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
-      #pragma omp parallel for //schedule(dynamic)
+      #pragma omp parallel for schedule(runtime)
       for (int y = 2; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
-              changements += compute_new_state (y, x);
+              if(compute_new_state (y, x)) {
+                changements = 1;
+            }
         }
           monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
-      #pragma omp parallel for //schedule(dynamic)
+      #pragma omp parallel for schedule(runtime)
       for (int y = 3; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
-              changements += compute_new_state (y, x);
+              if(compute_new_state (y, x)) {
+                changements = 1;
+            }
         }
           monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
@@ -341,136 +237,73 @@ unsigned sable_compute_omp (unsigned nb_iter)
   return 0;
 }
 
-// ///////////////////////////// Version séquentielle tuilée (tiled)
+//////////////////////////////// Version séquentielle tuilée (tiled)
 
-
-
-
-// static void do_tile_tiled (int x, int y, int width, int height, int who)
-// {
-//   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
-//                y + height - 1);
-
-//   monitoring_start_tile (who);
-
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_tiled (i, j);
-//     }
-//   #pragma omp barrier
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_tiled (i, j);
-//     }
-//   #pragma omp barrier
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-static int do_tile_tiled (int x, int y, int width, int height, int who)
+unsigned sable_compute_tiled (unsigned nb_iter)
 {
-  int chang = 0;
-  monitoring_start_tile (who);
-  for (int i = y; i < y + height; i++)
-    for (int j = x; j < x + width; j++) {
-      chang += compute_new_state(i, j);
-    }
-  monitoring_end_tile (x, y, width, height, who);
-  if(chang == 0){
-    return 0;
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    int changements = 0;
+
+    for (int y = 0; y < DIM; y += TILE_SIZE)
+      for (int x = 0; x < DIM; x += TILE_SIZE)
+        if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+				}				
+    if (changements == 0)
+      return it;
   }
-  return 1;
+
+  return 0;
 }
 
-
-// unsigned sable_compute_tiled2 (unsigned nb_iter)
-// {
-
-//   for(int i = 0; i < DIM; i++)
-//     for(int j = 0; j < DIM; j++)
-//       tab_changement(i,j) = 0;
-
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     changement = 0;
-
-//     #pragma omp parallel for collapse(2) //schedule(dynamic)
-//     for (int y = 0; y < DIM; y += TILE_SIZE)
-//       for (int x = 0; x < DIM; x += TILE_SIZE)
-//         do_tile_tiled(x + (x == 0), y + (y == 0),
-//                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                   omp_get_thread_num());
-
-//     if (changement == 0)
-//       return it;
-//   }
-
-//   return 0;
-// }
-
-// unsigned sable_compute_omptiled (unsigned nb_iter)
-// {
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     int changements = 0;
-//         #pragma omp parallel
-//         {
-//             #pragma omp single
-//             {
-//             for (int y = 0; y < DIM; y += TILE_SIZE){
-//               for (int x = 0; x < DIM; x += TILE_SIZE){
-//                         #pragma omp task
-//                 changements += do_tile (x + (x == 0), y + (y == 0),
-//                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                  0 /* CPU id */);
-//                     }
-//                 }
-//             #pragma omp taskwait
-//             }
-//         }
-//   if (changements == 0)
-//     return it;
-//      }
-
-//   return 0;
-// }
-
-
+//////////////////////////////// Version tuilée OpenMP Damier (tileddb)
 
 unsigned sable_compute_tileddb (unsigned nb_inter)
 {
   for(unsigned it = 1;it <= nb_inter; it++){
     int changements = 0;
-    #pragma omp parallel for collapse(2) //schedule(dynamic)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) 
-          changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
             
-    #pragma omp parallel for collapse(2) //schedule(dynamic)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE)
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE)
-          changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
             
-    #pragma omp parallel for collapse(2) //schedule(dynamic)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE) 
-          changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
 
-    #pragma omp parallel for collapse(2) //schedule(dynamic)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE)
-          changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
       
         if (changements == 0)
       return it;
@@ -481,7 +314,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
 
 
 
-
+//////////////////////////////// Version tuilée OpenMP Damier bis (tiledsharedy) 
 
 
 unsigned sable_compute_tiledsharedy (unsigned nb_iter)
@@ -489,189 +322,64 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
     int y = 0;
-    #pragma omp parallel for shared(y) //schedule(dynamic)
+    #pragma omp parallel for shared(y) schedule(runtime)
     for (y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? 0:TILE_SIZE; x < DIM; x += TILE_SIZE* 2)
-        changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+      {
+        #pragma omp critical
+        if(           (x == 0 && y == 0) || 
+          (x == 0 && y % TILE_SIZE == 0) || 
+          (x % TILE_SIZE == 0 && y == 0) || 
+          (x % TILE_SIZE == 0 && y % TILE_SIZE == 0))
+          {
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
+        }
+        else{
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
+        }
+      }
 
-    #pragma omp parallel for shared(y) //schedule(dynamic)
+    #pragma omp parallel for shared(y) schedule(runtime)
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? TILE_SIZE:0; x < DIM; x += TILE_SIZE  * 2)
-        changements += do_tile_tiled (x + (x == 0), y + (y == 0),
-                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-                    omp_get_thread_num());
+      {
+        #pragma omp critical
+        if(           (x == 0 && y == 0) || 
+          (x == 0 && y % TILE_SIZE == 0) || 
+          (x % TILE_SIZE == 0 && y == 0) || 
+          (x % TILE_SIZE == 0 && y % TILE_SIZE == 0))
+          {
+            if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
+        }
+        else{
+          if( do_tile (x + (x == 0), y + (y == 0),
+                      TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                      TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+                      omp_get_thread_num())) {
+                changements = 1;
+            }
+        }
+      }
+
     if (changements == 0)
       return it;
   }
 
   return 0;
 }
-
-
-
-
-
-// static void compute_new_state_edge (int x, int y)
-// {
-  
-//   if (table (y, x) >= 4) {
-//     int i_d = (y > 0) ? y - 1 : y;
-//     int i_f = (y < DIM - 1) ? y + 1 : y;
-//     int j_d = (x > 0) ? x - 1 : x;
-//     int j_f = (x < DIM - 1) ? x + 1 : x;
-//     unsigned long int div4 = table (y, x) / 4;
-//       // #pragma omp atomic
-//       table (y, j_d) += div4;
-//       // #pragma omp atomic
-//       table (y, j_f) += div4;
-//       // #pragma omp atomic
-//       table (i_d, x) += div4;
-//       // #pragma omp atomic
-//       table (i_f, x) += div4;
-//       table (y, x) %= 4;
-//       changement = 1;
-//   }
-  
-// }
-
-// static void do_tile_tiled (int x, int y, int width, int height, int who)
-// {
-//   monitoring_start_tile (who);
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_tiled(i, j);
-//     }
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-// static void do_tile_edge (int x, int y, int width, int height, int who)
-// {
-//   monitoring_start_tile (who);
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-//       compute_new_state_edge(i, j);
-//     }
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-
-// unsigned sable_compute_tiled (unsigned nb_iter)
-// {
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     changement = 0;
-//     #pragma omp parallel for collapse(2) schedule(dynamic)
-//     for (int y = 0; y < DIM; y += TILE_SIZE)
-//       for (int x = 0; x < DIM; x += TILE_SIZE)
-//       // #pragma omp critical
-//       if(x > 0 && y > 0 && x > DIM - TILE_SIZE && y > DIM- TILE_SIZE){
-// 		  //pas bord
-//         do_tile_tiled (x + (x == 0), y + (y == 0),
-//                   TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                     omp_get_thread_num());
-//       }
-//       else{
-//         //bord
-//         do_tile_edge (x + (x == 0), y + (y == 0),
-//                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                   omp_get_thread_num());
-		  
-//       }
-//     if (changement == 0)
-//       return it;
-//     #pragma omp barrier
-//   }
-
-//   return 0;
-// }
-
-// static void compute_new_state_tiled (int x, int y, int width, int height)
-// {
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-
-//       int i_d = (i > 0) ? i - 1 : i;
-//       int i_f = (i < DIM - 1) ? i + 1 : i;
-//       int j_d = (j > 0) ? j - 1 : j;
-//       int j_f = (j < DIM - 1) ? j + 1 : j;
-
-//       if (table (i, j) >= 4) {
-//         unsigned long int div4 = table (i, j) / 4;
-//           table (i, j_d) += div4;
-//           table (i, j_f) += div4;
-//           table (i_d, j) += div4;
-//           table (i_f, j) += div4;
-//           table (i, j) %= 4;
-//           changement = 1;
-//       }
-//     }
-      
-// }
-  
-
-// static void compute_new_state_tiled_inner (int x, int y, int width, int height)
-// {
-//   for (int i = y; i < y + height; i++)
-//     for (int j = x; j < x + width; j++) {
-
-
-//        if (table (i, j) >= 4) {
-//         unsigned long int div4 = table (i, j) / 4;
-//           table (i, j - 1) += div4;
-//           table (i, j + 1) += div4;
-//           table (i - 1, j) += div4;
-//           table (i + 1, j) += div4;
-//           table (i, j) %= 4;
-//           changement = 1;
-//       }
-//     }
-      
-// }
-
-// static void do_tile_tiled_inner (int x, int y, int width, int height, int who)
-// {
-//   monitoring_start_tile (who);
-//   compute_new_state_tiled_inner(y, x, width, height);
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-// static void do_tile_tiled (int x, int y, int width, int height, int who)
-// {
-//   monitoring_start_tile (who);
-//   compute_new_state_tiled(y, x, width, height);
-//   monitoring_end_tile (x, y, width, height, who);
-// }
-
-
-// unsigned sable_compute_tiled (unsigned nb_iter)
-// {
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     changement = 0;
-//     #pragma omp parallel for collapse(2) schedule(dynamic)
-//     for (int y = 0; y < DIM; y += TILE_SIZE)
-//       for (int x = 0; x < DIM; x += TILE_SIZE)
-//       #pragma omp critical
-//       if(x > 0 || y > 0 || x < DIM - TILE_SIZE || y < DIM- TILE_SIZE){
-//         do_tile_tiled(x + (x == 0), y + (y == 0),
-//                  TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                  TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                   omp_get_thread_num());
-//       }
-//       else{
-//         do_tile_tiled (x + (x == 0), y + (y == 0),
-//                   TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                   TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-//                     omp_get_thread_num());
-//       }
-//     if (changement == 0)
-//       return it;
-//   }
-
-//   return 0;
-// }
 

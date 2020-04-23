@@ -212,14 +212,14 @@ void life_draw (char *param)
 static void otca_autoswitch (char *name, int x, int y)
 {
   life_rle_parse (name, x, y, RLE_ORIENTATION_NORMAL);
-  life_rle_parse ("data/autoswitch-ctrl.rle", x + 123, y + 1396,
+  life_rle_parse ("data/rle/autoswitch-ctrl.rle", x + 123, y + 1396,
                   RLE_ORIENTATION_NORMAL);
 }
 
 static void otca_life (char *name, int x, int y)
 {
   life_rle_parse (name, x, y, RLE_ORIENTATION_NORMAL);
-  life_rle_parse ("data/b3-s23-ctrl.rle", x + 123, y + 1396,
+  life_rle_parse ("data/rle/b3-s23-ctrl.rle", x + 123, y + 1396,
                   RLE_ORIENTATION_NORMAL);
 }
 
@@ -238,7 +238,7 @@ void life_draw_otca_off (void)
   if (DIM < 2176)
     exit_with_error ("DIM should be at least %d", 2176);
 
-  otca_autoswitch ("data/otca-off.rle", 1, 1);
+  otca_autoswitch ("data/rle/otca-off.rle", 1, 1);
 }
 
 // Suggested cmdline: ./run -k life -s 2176 -a otca_on -ts 64 -r 10
@@ -247,7 +247,7 @@ void life_draw_otca_on (void)
   if (DIM < 2176)
     exit_with_error ("DIM should be at least %d", 2176);
 
-  otca_autoswitch ("data/otca-on.rle", 1, 1);
+  otca_autoswitch ("data/rle/otca-on.rle", 1, 1);
 }
 
 // Suggested cmdline: ./run -k life -s 6208 -a meta3x3 -ts 64 -r 50
@@ -258,7 +258,7 @@ void life_draw_meta3x3 (void)
 
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++)
-      otca_life (j == 1 ? "data/otca-on.rle" : "data/otca-off.rle",
+      otca_life (j == 1 ? "data/rle/otca-on.rle" : "data/rle/otca-off.rle",
                  1 + j * (2058 - 10), 1 + i * (2058 - 10));
 }
 
@@ -266,8 +266,8 @@ void life_draw_meta3x3 (void)
 void life_draw_bugs (void)
 {
   for (int y = 0; y < DIM / 2; y += 32) {
-    life_rle_parse ("data/tagalong.rle", y + 1, y + 8, RLE_ORIENTATION_NORMAL);
-    life_rle_parse ("data/tagalong.rle", y + 1, (DIM - 32 - y) + 8, RLE_ORIENTATION_NORMAL);
+    life_rle_parse ("data/rle/tagalong.rle", y + 1, y + 8, RLE_ORIENTATION_NORMAL);
+    life_rle_parse ("data/rle/tagalong.rle", y + 1, (DIM - 32 - y) + 8, RLE_ORIENTATION_NORMAL);
   }
 }
 
@@ -284,7 +284,7 @@ void life_draw_stable (void)
 
 void life_draw_guns (void)
 {
-  at_the_four_corners ("data/gun.rle", 1);
+  at_the_four_corners ("data/rle/gun.rle", 1);
 }
 
 void life_draw_random (void)
@@ -298,11 +298,11 @@ void life_draw_random (void)
 // Suggested cmdline: ./run -k life -s 256 -a clown -i 110
 void life_draw_clown (void)
 {
-  life_rle_parse ("data/clown-seed.rle", DIM / 2, DIM / 2,
+  life_rle_parse ("data/rle/clown-seed.rle", DIM / 2, DIM / 2,
                   RLE_ORIENTATION_NORMAL);
 }
 
 void life_draw_diehard (void)
 {
-  life_rle_parse ("data/diehard.rle", DIM / 2, DIM / 2, RLE_ORIENTATION_NORMAL);
+  life_rle_parse ("data/rle/diehard.rle", DIM / 2, DIM / 2, RLE_ORIENTATION_NORMAL);
 }
