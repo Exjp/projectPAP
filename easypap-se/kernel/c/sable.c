@@ -192,7 +192,7 @@ unsigned sable_compute_seq_opt (unsigned nb_iter)
 			      tab_changement (i + 1,j) != 0 ||
 			      tab_changement (i,j - 1) != 0 ||
 			      tab_changement (i - 1,j) != 0 ){
-
+              
           if(compute_new_state_opt_tmp (i, j)) {
                       changements = 1;
           }
@@ -223,7 +223,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
     int changements = 0;
 
     #pragma omp parallel for schedule(runtime)
-      for (int y = 1; y < DIM - 1; y = y + 4) {
+      for (int y = 1; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
               if(compute_new_state (y, x)) {
@@ -234,7 +234,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
       }
 
       #pragma omp parallel for schedule(runtime)
-      for (int y = 2; y < DIM - 1; y = y + 4) {
+      for (int y = 2; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
               if(compute_new_state (y, x)) {
@@ -245,18 +245,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
       }
 
       #pragma omp parallel for schedule(runtime)
-      for (int y = 3; y < DIM - 1; y = y + 4) {
-          monitoring_start_tile (omp_get_thread_num());
-        for (int x = 1; x < DIM - 1; x++) {
-              if(compute_new_state (y, x)) {
-                changements = 1;
-            }
-        }
-          monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
-      }
-
-      #pragma omp parallel for schedule(runtime)
-      for (int y = 4; y < DIM - 1; y = y + 4) {
+      for (int y = 3; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
         for (int x = 1; x < DIM - 1; x++) {
               if(compute_new_state (y, x)) {
