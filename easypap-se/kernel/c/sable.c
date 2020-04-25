@@ -6,11 +6,12 @@ static long unsigned int *TABLE = NULL;
 
 // static int changement;
 
-static int *tab_changement = NULL;
+static int *tab_current_instable = NULL;
+
 
 static unsigned long int max_grains;
 
-#define tab_changement(i, j) tab_changement[(i)*DIM + (j)]
+#define tab_current_instable(i, j) tab_current_instable[(i)*DIM + (j)]
 
 #define table(i, j) TABLE[(i)*DIM + (j)]
 
@@ -21,13 +22,13 @@ static unsigned long int max_grains;
 void sable_init ()
 {
   TABLE = calloc (DIM * DIM, sizeof (long unsigned int));
-  tab_changement = calloc (DIM * DIM, sizeof (int));
+  tab_current_instable = calloc (DIM * DIM, sizeof (int));
 }
 
 void sable_finalize ()
 {
   free (TABLE);
-  free (tab_changement);
+  free (tab_current_instable);
 }
 
 ///////////////////////////// Production d'une image
@@ -167,13 +168,18 @@ static inline int compute_new_state_opt_tmp (int y, int x)
 if ( table (y, x) >= 4) {
     unsigned long int div4 = table (y, x) / 4;
     table (y, x - 1) += div4;
+    tab_current_instable (y,x - 1) = 1;
     table (y, x + 1) += div4;
+    tab_current_instable (y,x + 1) = 1;
     table (y - 1, x) += div4;
+    tab_current_instable (y - 1,x) = 1;
     table (y + 1, x) += div4;
+    tab_current_instable (y + 1,x) = 1;
     table (y, x) %= 4;
-    tab_changement (x,y) = 1;
+    tab_current_instable (y,x) = 1;
     return 1;
   }
+   tab_current_instable (y,x) = 0;
   return 0;
 }
 
@@ -181,30 +187,27 @@ if ( table (y, x) >= 4) {
 
 unsigned sable_compute_seq_opt (unsigned nb_iter)
 {
+  for (int i = 1; i < DIM - 1; i++)
+    for (int j = 1; j < DIM - 1; j++)
+      tab_current_instable(i,j) = 1;
 
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
-		monitoring_start_tile (0);
+        monitoring_start_tile (0);
 
-		for (int i = 1; i < 1 + DIM - 2; i++)
-			for (int j = 1; j < 1 + DIM - 2; j++) {
-        if(	tab_changement (i,j + 1) != 0 ||
-			      tab_changement (i + 1,j) != 0 ||
-			      tab_changement (i,j - 1) != 0 ||
-			      tab_changement (i - 1,j) != 0 ){
-              
-          if(compute_new_state_opt_tmp (i, j)) {
-                      changements = 1;
-          }
+        for (int i = 1; i < 1 + DIM - 2; i++)
+            for (int j = 1; j < 1 + DIM - 2; j++) {
+                if(tab_current_instable(i,j) == 1)
+                    if(compute_new_state_opt_tmp (i, j)){
+                        changements = 1;
+                    }
+                if(it == 1)
+                  if(compute_new_state_opt_tmp (i, j)){
+                    changements = 1;
+                  }
+        }
+        monitoring_end_tile (1, 1, DIM - 2, DIM - 2, 0);
 
-        }
-        if(it == 1){
-          if(compute_new_state_opt_tmp (i, j)) {
-                      changements = 1;
-          }
-        }
-			}
-		monitoring_end_tile (1, 1, DIM - 2, DIM - 2, 0);
     if (changements == 0)  
       return it;
   }
@@ -292,7 +295,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
 {
   for(unsigned it = 1;it <= nb_inter; it++){
     int changements = 0;
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) 
           if( do_tile (x + (x == 0), y + (y == 0),
@@ -302,7 +305,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                 changements = 1;
             }
             
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE)
         for (int x = 0; x < DIM; x += 2 * TILE_SIZE)
           if( do_tile (x + (x == 0), y + (y == 0),
@@ -312,7 +315,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                 changements = 1;
             }
             
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE) 
           if( do_tile (x + (x == 0), y + (y == 0),
@@ -322,7 +325,7 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
                 changements = 1;
             }
 
-    #pragma omp parallel for collapse(2)
+    #pragma omp parallel for collapse(2) schedule(runtime)
     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE) 
         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE)
           if( do_tile (x + (x == 0), y + (y == 0),
@@ -339,8 +342,6 @@ unsigned sable_compute_tileddb (unsigned nb_inter)
   return 0;
 }
 
-
-
 //////////////////////////////// Version tuilée OpenMP Damier bis (tiledsharedy) 
 
 
@@ -349,7 +350,7 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
     int y = 0;
-    #pragma omp parallel for shared(y)
+    #pragma omp parallel for shared(y) schedule(runtime)
     for (y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? 0:TILE_SIZE; x < DIM; x += TILE_SIZE* 2)
       {
@@ -376,7 +377,7 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
         }
       }
 
-    #pragma omp parallel for shared(y)
+    #pragma omp parallel for shared(y) schedule(runtime)
     for (int y = 0; y < DIM; y += TILE_SIZE)
       for (int x = (y % (TILE_SIZE * 2) == 0) ? TILE_SIZE:0; x < DIM; x += TILE_SIZE  * 2)
       {
