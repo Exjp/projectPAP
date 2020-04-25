@@ -1,5 +1,5 @@
 #include "easypap.h"
-
+#include <omp.h>
 #include <stdbool.h>
 
 static long unsigned int *TABLE = NULL;
@@ -11,7 +11,7 @@ static int *tab_current_instable = NULL;
 
 static unsigned long int max_grains;
 
-#define tab_current_instable(i, j) tab_current_instable[(i)*DIM + (j)]
+#define tab_current_instable(i, j) tab_current_instable[(i)*GRAIN + (j)]
 
 #define table(i, j) TABLE[(i)*DIM + (j)]
 
@@ -22,7 +22,13 @@ static unsigned long int max_grains;
 void sable_init ()
 {
   TABLE = calloc (DIM * DIM, sizeof (long unsigned int));
-  tab_current_instable = calloc (DIM * DIM, sizeof (int));
+  tab_current_instable = malloc (GRAIN * GRAIN * sizeof (int));
+
+    for (int i = 0; i < GRAIN; i++) {
+      for (int j = 0; j < GRAIN; j++) {
+        tab_current_instable(i, j) = 1;
+      }
+    }
 }
 
 void sable_finalize ()
@@ -110,23 +116,6 @@ static inline int compute_new_state (int y, int x)
   return 0;
 }
 
-static inline int compute_new_state_opt(int y, int x)
-{
-  if (table (y, x) >= 4) {
-    unsigned long int mod4 = table (y,x) % 4;
-    unsigned long int div4 = table (y, x) / 4;
-
-    table(y, x) = mod4;
-    table (y, x - 1) += div4;
-    table (y, x + 1) += div4;
-    table (y - 1, x) += div4;
-    table (y + 1, x) += div4;
-    return 1;
-  }
-  return 0;
-}
-
-
 
 static int do_tile (int x, int y, int width, int height, int who)
 {
@@ -163,57 +152,45 @@ unsigned sable_compute_seq (unsigned nb_iter)
 
 // /////////////////////////////// Version séquentielle simple mais optimisé (seq_opt)
 
-static inline int compute_new_state_opt_tmp (int y, int x)
-{
-if ( table (y, x) >= 4) {
-    unsigned long int div4 = table (y, x) / 4;
-    table (y, x - 1) += div4;
-    tab_current_instable (y,x - 1) = 1;
-    table (y, x + 1) += div4;
-    tab_current_instable (y,x + 1) = 1;
-    table (y - 1, x) += div4;
-    tab_current_instable (y - 1,x) = 1;
-    table (y + 1, x) += div4;
-    tab_current_instable (y + 1,x) = 1;
-    table (y, x) %= 4;
-    tab_current_instable (y,x) = 1;
-    return 1;
-  }
-   tab_current_instable (y,x) = 0;
-  return 0;
-}
-
 
 
 unsigned sable_compute_seq_opt (unsigned nb_iter)
 {
-  for (int i = 1; i < DIM - 1; i++)
-    for (int j = 1; j < DIM - 1; j++)
-      tab_current_instable(i,j) = 1;
-
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
-        monitoring_start_tile (0);
+    
+    monitoring_start_tile (0);
+    for (int y = 0; y < DIM; y += TILE_SIZE)
+			for (int x = 0; x < DIM; x += TILE_SIZE) {
+        int tile_x = x/TILE_SIZE;
+        int tile_y = y/TILE_SIZE;
 
-        for (int i = 1; i < 1 + DIM - 2; i++)
-            for (int j = 1; j < 1 + DIM - 2; j++) {
-                if(tab_current_instable(i,j) == 1)
-                    if(compute_new_state_opt_tmp (i, j)){
-                        changements = 1;
-                    }
-                if(it == 1)
-                  if(compute_new_state_opt_tmp (i, j)){
-                    changements = 1;
-                  }
-        }
-        monitoring_end_tile (1, 1, DIM - 2, DIM - 2, 0);
+				if (tab_current_instable(tile_y, tile_x)) {
+					if (do_tile(
+                x + (x == 0),
+                y + (y == 0),
+                TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+								0)) {
+            changements = 1;
+
+            if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
+            if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
+					} else {
+						tab_current_instable(tile_y, tile_x) = 0;
+					}
+				}
+			}
+		
+    monitoring_end_tile (1, 1, DIM - 2, DIM - 2, 0);
 
     if (changements == 0)  
       return it;
   }
   return 0;
 }
-
 
 ///////////////////////////// Version OpenMP (omp)
 
@@ -225,6 +202,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
   for (unsigned it = 1; it <= nb_iter; it++) {
     int changements = 0;
 
+
     #pragma omp parallel for schedule(runtime)
       for (int y = 1; y < DIM - 1; y = y + 3) {
           monitoring_start_tile (omp_get_thread_num());
@@ -233,7 +211,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
                 changements = 1;
             }
         }
-          monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
+      monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
       #pragma omp parallel for schedule(runtime)
@@ -244,7 +222,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
                 changements = 1;
             }
         }
-          monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
+      monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
 
       #pragma omp parallel for schedule(runtime)
@@ -255,7 +233,7 @@ unsigned sable_compute_omp (unsigned nb_iter)
                 changements = 1;
             }
         }
-          monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
+      monitoring_end_tile (1, y, DIM, 1, omp_get_thread_num());
       }
     
     
@@ -266,6 +244,131 @@ unsigned sable_compute_omp (unsigned nb_iter)
   }
   return 0;
 }
+//////////////////////////////// Version OpenMP optimisé(ompopt)
+
+
+
+unsigned sable_compute_ompopt (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    int changements = 0;
+    
+    #pragma omp parallel for schedule(runtime)
+    for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
+        for (int x = 0; x < DIM; x += 2 * TILE_SIZE) {
+        monitoring_start_tile (0);
+        int tile_x = x/TILE_SIZE;
+        int tile_y = y/TILE_SIZE;
+
+				if (tab_current_instable(tile_y, tile_x)) {
+					if (do_tile(
+                x + (x == 0),
+                y + (y == 0),
+                TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+								0)) {
+            changements = 1;
+
+            if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
+            if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
+					} else {
+						tab_current_instable(tile_y, tile_x) = 0;
+					}
+				}
+			}
+    monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
+		
+    #pragma omp parallel for schedule(runtime)
+     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE)
+        for (int x = 0; x < DIM; x += 2 * TILE_SIZE) {
+        monitoring_start_tile (0);
+        int tile_x = x/TILE_SIZE;
+        int tile_y = y/TILE_SIZE;
+
+				if (tab_current_instable(tile_y, tile_x)) {
+					if (do_tile(
+                x + (x == 0),
+                y + (y == 0),
+                TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+								0)) {
+            changements = 1;
+
+            if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
+            if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
+					} else {
+						tab_current_instable(tile_y, tile_x) = 0;
+					}
+				}
+			}
+    monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
+
+    #pragma omp parallel for schedule(runtime)
+    for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
+        for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE)  {
+        monitoring_start_tile (0);
+        int tile_x = x/TILE_SIZE;
+        int tile_y = y/TILE_SIZE;
+
+				if (tab_current_instable(tile_y, tile_x)) {
+					if (do_tile(
+                x + (x == 0),
+                y + (y == 0),
+                TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+								0)) {
+            changements = 1;
+
+            if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
+            if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
+					} else {
+						tab_current_instable(tile_y, tile_x) = 0;
+					}
+				}
+			}
+    monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
+
+    #pragma omp parallel for schedule(runtime)
+    for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE) 
+        for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE) {
+        monitoring_start_tile (0);
+        int tile_x = x/TILE_SIZE;
+        int tile_y = y/TILE_SIZE;
+
+				if (tab_current_instable(tile_y, tile_x)) {
+					if (do_tile(
+                x + (x == 0),
+                y + (y == 0),
+                TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
+                TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
+								0)) {
+            changements = 1;
+
+            if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
+            if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
+            if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
+					} else {
+						tab_current_instable(tile_y, tile_x) = 0;
+					}
+				}
+    monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
+			}
+
+
+
+    if (changements == 0)  
+      return it;
+  }
+  return 0;
+}
+
 
 //////////////////////////////// Version séquentielle tuilée (tiled)
 
