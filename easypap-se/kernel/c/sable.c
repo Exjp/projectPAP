@@ -100,6 +100,7 @@ void sable_draw_alea (void)
   }
 }
 
+
 // ///////////////////////////// Version séquentielle simple (seq)
 
 static inline int compute_new_state (int y, int x)
@@ -122,6 +123,7 @@ static int do_tile (int x, int y, int width, int height, int who)
   PRINT_DEBUG ('c', "tuile [%d-%d][%d-%d] traitée\n", x, x + width - 1, y,
                y + height - 1);
   int changements = 0;
+  printf("here");
   monitoring_start_tile (who);
 
   for (int i = y; i < y + height; i++)
@@ -244,131 +246,6 @@ unsigned sable_compute_omp (unsigned nb_iter)
   }
   return 0;
 }
-//////////////////////////////// Version OpenMP optimisé(ompopt)
-
-
-
-// unsigned sable_compute_ompopt (unsigned nb_iter)
-// {
-//   for (unsigned it = 1; it <= nb_iter; it++) {
-//     int changements = 0;
-    
-//     #pragma omp parallel for schedule(runtime)
-//     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
-//         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) {
-//         monitoring_start_tile (0);
-//         int tile_x = x/TILE_SIZE;
-//         int tile_y = y/TILE_SIZE;
-
-// 				if (tab_current_instable(tile_y, tile_x)) {
-// 					if (do_tile(
-//                 x + (x == 0),
-//                 y + (y == 0),
-//                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-// 								0)) {
-//             changements = 1;
-
-//             if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
-//             if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
-// 					} else {
-// 						tab_current_instable(tile_y, tile_x) = 0;
-// 					}
-// 				}
-// 			}
-//     monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
-		
-//     #pragma omp parallel for schedule(runtime)
-//      for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE)
-//         for (int x = 0; x < DIM; x += 2 * TILE_SIZE) {
-//         monitoring_start_tile (0);
-//         int tile_x = x/TILE_SIZE;
-//         int tile_y = y/TILE_SIZE;
-
-// 				if (tab_current_instable(tile_y, tile_x)) {
-// 					if (do_tile(
-//                 x + (x == 0),
-//                 y + (y == 0),
-//                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-// 								0)) {
-//             changements = 1;
-
-//             if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
-//             if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
-// 					} else {
-// 						tab_current_instable(tile_y, tile_x) = 0;
-// 					}
-// 				}
-// 			}
-//     monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
-
-//     #pragma omp parallel for schedule(runtime)
-//     for (int y = 0; y < DIM; y += 2 * TILE_SIZE) 
-//         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE)  {
-//         monitoring_start_tile (0);
-//         int tile_x = x/TILE_SIZE;
-//         int tile_y = y/TILE_SIZE;
-
-// 				if (tab_current_instable(tile_y, tile_x)) {
-// 					if (do_tile(
-//                 x + (x == 0),
-//                 y + (y == 0),
-//                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-// 								0)) {
-//             changements = 1;
-
-//             if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
-//             if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
-// 					} else {
-// 						tab_current_instable(tile_y, tile_x) = 0;
-// 					}
-// 				}
-// 			}
-//     monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
-
-//     #pragma omp parallel for schedule(runtime)
-//     for (int y = TILE_SIZE; y < DIM; y += 2 * TILE_SIZE) 
-//         for (int x = TILE_SIZE; x < DIM; x += 2 * TILE_SIZE) {
-//         monitoring_start_tile (0);
-//         int tile_x = x/TILE_SIZE;
-//         int tile_y = y/TILE_SIZE;
-
-// 				if (tab_current_instable(tile_y, tile_x)) {
-// 					if (do_tile(
-//                 x + (x == 0),
-//                 y + (y == 0),
-//                 TILE_SIZE - ((x + TILE_SIZE == DIM) + (x == 0)),
-//                 TILE_SIZE - ((y + TILE_SIZE == DIM) + (y == 0)),
-// 								0)) {
-//             changements = 1;
-
-//             if (tile_x > 0) tab_current_instable(tile_y, tile_x - 1) = 1;
-//             if (tile_y > 0) tab_current_instable(tile_y - 1, tile_x) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y, tile_x + 1) = 1;
-//             if (tile_x < GRAIN - 1) tab_current_instable(tile_y + 1, tile_x) = 1;
-// 					} else {
-// 						tab_current_instable(tile_y, tile_x) = 0;
-// 					}
-// 				}
-//     monitoring_end_tile (1, y, DIM - 2, DIM - 2, 0);
-// 			}
-
-
-
-//     if (changements == 0)  
-//       return it;
-//   }
-//   return 0;
-// }
-
 
 //////////////////////////////// Version séquentielle tuilée (tiled)
 
@@ -513,4 +390,57 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
 
   return 0;
 }
+
+
+////////////////////////////// Version MPI
+unsigned sable_compute_mpi (unsigned nb_iter)
+{
+  for (unsigned it = 1; it <= nb_iter; it++) {
+    int changements = 0;
+    int rank, size;
+    MPI_Status etat;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if(rank % 2 == 0 ){
+      if(rank != 0){
+        printf("Je suis tuile paire != 0 et j'envoie au dessus de moi, proc = %d\n",rank);
+        MPI_Send(&table(rank * (DIM/size),1),GRAIN * DIM, MPI_UNSIGNED_LONG, rank - 1,0,MPI_COMM_WORLD);
+        printf("Je suis tuile paire != 0 et je recoie au dessus de moi + 1, proc = %d\n",rank);
+        MPI_Recv(&table((rank - 1 * (DIM/size)) % size,1),GRAIN * DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat);
+      }
+      printf("Je suis tuile paire et j'envoie en dessous de moi, proc = %d\n",rank);
+      // MPI_Send(&table(rank + 1 * (DIM/size),1),GRAIN * DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
+      printf("Je suis tuile paire et je recoie en dessous de moi + 1, proc = %d\n",rank);
+      // MPI_Recv(&table((rank + 1 * (DIM/size)) % size,1),GRAIN * DIM, MPI_UNSIGNED_LONG, rank + 1 ,0,MPI_COMM_WORLD, &etat);
+      printf("fini\n");
+    }else {
+      printf("else debut\n");
+        if(rank != size - 1){
+          MPI_Recv(&table(((rank + 1) % size * (DIM/size)) % size,1),GRAIN * DIM, MPI_UNSIGNED_LONG, (rank + 1) % size,0,MPI_COMM_WORLD, &etat);
+          MPI_Send(&table(rank * (DIM/size),1),GRAIN * DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
+        }
+        MPI_Recv(&table((rank - 1 * (DIM/size)),1),GRAIN * DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat);
+        MPI_Send(&table(rank * (DIM/size),1),GRAIN * DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD);
+        printf("else fin\n");
+    }
+    if(rank == 0){
+      if(do_tile (1, 1, DIM, DIM + 1, 0)) {
+                changements = 1;
+      }
+    }
+    if(do_tile (1, rank*(DIM/size), DIM, DIM - 1 - rank*(DIM/size) + 2, 0)) {
+              changements = 1;
+    }
+    
+    
+    if (changements == 0)  
+      return it;
+    }
+     
+  return 0;
+
+}
+
 
