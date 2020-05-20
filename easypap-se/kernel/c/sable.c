@@ -393,6 +393,46 @@ unsigned sable_compute_tiledsharedy (unsigned nb_iter)
 
 
 ////////////////////////////// Version MPI
+
+// unsigned sable_compute_mpi (unsigned nb_iter){
+//   static int rank, size;
+//   MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+//   MPI_Comm_size(MPI_COMM_WORLD, &size);
+//   MPI_Status status;
+//   //j'envoie à chacun une partie de TABLE 
+//   //je récup dans table les résultats de mes enfants
+//   //chaque enfant envoie sa partie de TABLE, qui est de la taille de buf
+
+//   long unsigned int**buf = malloc(DIM/size*sizeof(long unsigned int*));
+//   for(int i = 0; i < DIM/size; i++)
+//     buf[i]=malloc(DIM*sizeof(long unsigned int));
+
+//   for (unsigned it = 1; it <= nb_iter; it++) {
+//     int changement = 0;
+
+//     MPI_Bcast(TABLE, DIM*DIM, MPI_UNSIGNED_LONG, 0, MPI_COMM_WORLD);
+//       if (rank == 0){
+//         if (do_tile(1, 1, DIM, ( DIM/size), 0))
+//           changement = 1;
+//         MPI_Gather(MPI_IN_PLACE,DIM*(DIM/size),MPI_UNSIGNED_LONG,TABLE,DIM*(DIM/size),MPI_UNSIGNED_LONG,0,MPI_COMM_WORLD);
+//       }
+          
+//       if (rank !=0) {
+//         if(do_tile (1, rank*(DIM/size) - 1, DIM, (DIM/size), 0))
+//           changement = 1;
+//         for(int i=1;i<DIM/size;i++)
+//           for(int j=1;j<DIM;j++)
+//             buf[i][j] = table(i,j);
+//         MPI_Gather(buf,DIM*(DIM/size),MPI_UNSIGNED_LONG,TABLE,DIM*(DIM/size),MPI_UNSIGNED_LONG,0,MPI_COMM_WORLD);
+//       }
+
+//       MPI_Barrier(MPI_COMM_WORLD);
+//     if (changement == 0)
+//       return it;
+//   }
+//   return 0;
+// }
+
 unsigned sable_compute_mpi (unsigned nb_iter)
 {
   for (unsigned it = 1; it <= nb_iter; it++) {
@@ -400,65 +440,71 @@ unsigned sable_compute_mpi (unsigned nb_iter)
     int rank, size;
     MPI_Status etat;
 
+    
+    long unsigned int** buf = (long unsigned int**) malloc (DIM * sizeof (long unsigned int*));
+
+    for (int i = 0; i < DIM; i++){
+      buf[i] = (long unsigned int*) malloc(DIM * sizeof(long unsigned int));
+      for(int j = 0; j < DIM; j++){
+        buf[i][j]=table(i,j);
+      }
+    }
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // printf("je suis e proc de rang %d\n",rank);
     if(rank % 2 == 0 ){
       if(rank != 0){
-        // printf("#Je suis tuile paire != 0 et j'envoie au dessus de moi, proc = %d\n",rank);
-        MPI_Send(&table(1,rank * (DIM/size) + 1),DIM, MPI_UNSIGNED_LONG, rank - 1,0,MPI_COMM_WORLD); // rajouter plus 1 si par marche pas bien
-        // printf("#Je suis tuile paire != 0 et je recoie au dessus de moi + 1, proc = %d\n",rank);
-        MPI_Recv(&table(1,(rank * (DIM/size))),DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat); 
-      }
-      // printf("#Je suis tuile paire et j'envoie en dessous de moi, proc = %d\n",rank);
-      // printf("##table(rank + 1 * (DIM/size) + GRAIN * DIM,1) = %ld | proc = %d\n",table(rank + 1 * (DIM/size),1),rank);
-      MPI_Send(&table(1,rank + 1 * (DIM/size)),DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
-      // printf("#Je suis tuile paire et je recoie en dessous de moi + 1, proc = %d\n",rank);
-     MPI_Recv(&table(1,((rank + 1) * (DIM/size)) + 1),DIM, MPI_UNSIGNED_LONG, rank + 1 ,0,MPI_COMM_WORLD, &etat);
-      // printf("#fini pour proc = %d\n",rank);
-    }else {
-      // printf("#else debut\n");
-        if(rank != size - 1){
-          // printf("Je suis tuile impaire != size -1 et je recois en dessous de moi, proc= %d\n",rank);
-          MPI_Recv(&table(1,((rank + 1)* (DIM/size)) + 1),DIM, MPI_UNSIGNED_LONG, (rank + 1),0,MPI_COMM_WORLD, &etat);
-          // printf("Je suis tuile impaire != size -1 et j'envoie en dessous de moi, proc= %d\n",rank);
-          MPI_Send(&table(1,(rank + 1 )* (DIM/size)),DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
+        MPI_Send(buf[rank * (DIM/size) + 1],DIM, MPI_UNSIGNED_LONG, rank - 1,0,MPI_COMM_WORLD);
+
+
+        MPI_Recv(buf[(rank * (DIM/size))],DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat); 
+        for(int i = 0; i < DIM; i++){
+          table(rank * (DIM/size) + 1,i) = buf[(rank * (DIM/size))][i];
         }
-        // printf("Je suis tuile impaire et je recois en dessus de moi, proc= %d\n",rank);
-        MPI_Recv(&table(1,rank * (DIM/size) - 1),DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat);
-        // printf("Je suis tuile impaire et je j'envoie au dessus de moi, proc= %d\n",rank);
-        MPI_Send(&table(1,rank * (DIM/size)),DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD);
-        // printf("else fin\n");
+      }
+      MPI_Send(buf[rank + 1 * (DIM/size)],DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
+      MPI_Recv(buf[((rank + 1) * (DIM/size)) + 1],DIM, MPI_UNSIGNED_LONG, rank + 1 ,0,MPI_COMM_WORLD, &etat);
+      for(int i = 0; i < DIM; i++){
+          table(((rank + 1) * (DIM/size)) + 1,i) = buf[((rank + 1) * (DIM/size)) + 1][i];
+        }
+      
+    }else {
+        if(rank != size - 1){
+          MPI_Recv(buf[((rank + 1)* (DIM/size)) + 1],DIM, MPI_UNSIGNED_LONG, (rank + 1),0,MPI_COMM_WORLD, &etat);
+
+          for(int i = 0; i < DIM; i++){
+            table(((rank + 1)* (DIM/size)) + 1,i) = buf[((rank + 1)* (DIM/size)) + 1][i];
+          }
+          MPI_Send(buf[(rank + 1 )* (DIM/size)],DIM, MPI_UNSIGNED_LONG, rank + 1,0,MPI_COMM_WORLD);
+        }
+        MPI_Recv(buf[rank * (DIM/size) - 1],DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD, &etat);
+
+        for(int i = 0; i < DIM; i++){
+            table(rank * (DIM/size) - 1,i) = buf[rank * (DIM/size) - 1][i];
+          }
+          MPI_Send(buf[rank * (DIM/size)],DIM, MPI_UNSIGNED_LONG, (rank - 1),0,MPI_COMM_WORLD);
     }
-    // printf("#2 je suis le proc de rang %d\n",rank);
     if(rank == 0){
-      // printf("#########################do tile\n");
-      if(do_tile (1, 1, DIM, (rank + 1) *( DIM/size), rank)) { // si ça marche pas, rajouter + 1 à height
+      if(do_tile (1, 1, DIM,(DIM/size), rank)) {
                 changements = 1;
       }
     }
     else if(rank == size - 1){
-      // printf("$$$$$$$$$$$$$$$$ dotile");
-      if(do_tile (1, rank*(DIM/size), DIM, DIM, rank)) {
+      if(do_tile (1, rank*(DIM/size), DIM, DIM/size, rank)) {
                 changements = 1;
       }
     }
     else{
-      // printf("#######################################\n");
-      // printf("rank*(DIM/size) = %d | (rank + 1) * (DIM/size) = %d | rank = %d\n",(rank) * (DIM/size),(rank + 1) * (DIM/size),rank);
-      if(do_tile (1, rank*(DIM/size), DIM, (rank + 1) * (DIM/size), rank)) {
+      if(do_tile (1, rank*(DIM/size) - 1, DIM, (DIM/size), rank)) {
                 changements = 1;
       }
 
     }
     
-    
-    if (changements == 0) 
-      // MPI_Gather(&table(1,1),)
+    if (changements == 0)
       return it;
-    }
-     
+  }
   return 0;
 
 }
